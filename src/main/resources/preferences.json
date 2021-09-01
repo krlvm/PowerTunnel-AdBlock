@@ -1,0 +1,18 @@
+[
+  {
+    "key": "mode",
+    "type": "select",
+    "items": [
+      {
+        "key": "dns"
+      },
+      {
+        "key": "proxy"
+      },
+      {
+        "key": "both"
+      }
+    ],
+    "defaultValue": "dns"
+  }
+]

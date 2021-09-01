@@ -17,7 +17,6 @@
 
 package io.github.krlvm.powertunnel.plugins.adblock;
 
-import io.github.krlvm.powertunnel.sdk.configuration.Configuration;
 import io.github.krlvm.powertunnel.sdk.plugin.PowerTunnelPlugin;
 import io.github.krlvm.powertunnel.sdk.proxy.ProxyServer;
 import io.github.krlvm.powertunnel.sdk.utiities.TextReader;
@@ -33,6 +32,8 @@ import java.util.Set;
 public class AdBlock extends PowerTunnelPlugin {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AdBlock.class);
+
+    private String[] blacklist;
 
     @Override
     public void onProxyInitialization(@NotNull ProxyServer proxy) {
@@ -60,6 +61,27 @@ public class AdBlock extends PowerTunnelPlugin {
         }
 
         LOGGER.info("Loaded {} hosts", blacklist.size());
-        registerProxyListener(new ProxyListener(getServer(), blacklist.toArray(new String[0])), -10);
+        this.blacklist = blacklist.toArray(new String[0]);
+
+
+        final FiltrationMode mode = FiltrationMode.valueOf(readConfiguration().get("mode", FiltrationMode.DNS.toString()).toUpperCase());
+
+        final boolean filterDns = mode == FiltrationMode.DNS || mode == FiltrationMode.BOTH;
+        final boolean filterProxy = mode == FiltrationMode.PROXY || mode == FiltrationMode.BOTH;
+
+        if(filterDns) {
+            registerProxyListener(new RequestListener(this), -10);
+        }
+        if(filterProxy) {
+            registerProxyListener(new DNSListener(this), -10);
+        }
+    }
+
+    protected boolean isBlocked(final String host) {
+        if(blacklist == null || host == null) return false;
+        for (String s : blacklist) {
+            if(host.endsWith(s)) return true;
+        }
+        return false;
     }
 }
