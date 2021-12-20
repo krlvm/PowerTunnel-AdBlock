@@ -70,10 +70,10 @@ public class AdBlock extends PowerTunnelPlugin {
         final boolean filterProxy = mode == FiltrationMode.PROXY || mode == FiltrationMode.BOTH;
 
         if(filterDns) {
-            registerProxyListener(new RequestListener(this), -10);
+            registerProxyListener(new DNSListener(this), -10);
         }
         if(filterProxy) {
-            registerProxyListener(new DNSListener(this), -10);
+            registerProxyListener(new RequestListener(this), -10);
         }
     }
 
