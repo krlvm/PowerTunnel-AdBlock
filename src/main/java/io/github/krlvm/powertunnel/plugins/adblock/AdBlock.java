@@ -17,6 +17,7 @@
 
 package io.github.krlvm.powertunnel.plugins.adblock;
 
+import io.github.krlvm.powertunnel.sdk.configuration.Configuration;
 import io.github.krlvm.powertunnel.sdk.plugin.PowerTunnelPlugin;
 import io.github.krlvm.powertunnel.sdk.proxy.ProxyServer;
 import io.github.krlvm.powertunnel.sdk.utiities.TextReader;
@@ -37,24 +38,20 @@ public class AdBlock extends PowerTunnelPlugin {
 
     @Override
     public void onProxyInitialization(@NotNull ProxyServer proxy) {
+        final Configuration config = readConfiguration();
         final Set<String> blacklist = new HashSet<>();
-        try {
-            final String res = TextReader.read(new URL("https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts").openStream());
-            final String[] arr = res.split("\n");
 
-            for(int i = 40; i < arr.length; i++) {
-                String s = arr[i];
-                if(s.isEmpty() || s.startsWith("#")) continue;
-                s = s.substring(8);
-                if(s.startsWith("www.")) {
-                    s = s.replaceFirst("www.", "");
-                }
-                blacklist.add(s);
+        final long interval = config.getLong("last_mirror_load", 0);
+        if ((System.currentTimeMillis() - interval) < getMirrorInterval(config.get("update_interval", "interval_2"))) {
+            if (!loadFiltersFromCache(blacklist)) {
+                loadFiltersFromMirror(blacklist, config, interval != 0);
             }
-        } catch (IOException ex) {
-            LOGGER.warn("Failed to load blacklist: {}", ex.getMessage(), ex);
-            return;
+        } else {
+            if (!loadFiltersFromMirror(blacklist, config, interval != 0)) {
+                loadFiltersFromCache(blacklist);
+            }
         }
+
         if(blacklist.isEmpty()) {
             LOGGER.info("Blacklist is empty");
             return;
@@ -83,5 +80,69 @@ public class AdBlock extends PowerTunnelPlugin {
             if(host.endsWith(s)) return true;
         }
         return false;
+    }
+
+
+
+    private boolean loadFiltersFromMirror(Set<String> blacklist, Configuration config, boolean caching) {
+        LOGGER.info("Loading filters from mirror...");
+        try {
+            final String raw = TextReader.read(new URL("https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts").openStream());
+            parseFilters(blacklist, raw);
+
+            if (caching) {
+                try {
+                    config.setLong("last_mirror_load", System.currentTimeMillis());
+                    saveConfiguration();
+                } catch (IOException ex) {
+                    LOGGER.warn("Failed to save the time of the last load of the filters from the mirror: {}", ex.getMessage(), ex);
+                }
+                try {
+                    saveTextFile("adblock-cache.txt", raw);
+                } catch (IOException ex) {
+                    LOGGER.warn("Failed to save cached filters: {}", ex.getMessage(), ex);
+                }
+            }
+
+            return true;
+        } catch (IOException ex) {
+            LOGGER.warn("Failed to load filters: {}", ex.getMessage(), ex);
+            return false;
+        }
+    }
+
+    private boolean loadFiltersFromCache(Set<String> blacklist) {
+        LOGGER.info("Loading filters from cache...");
+        try {
+            parseFilters(blacklist, readTextFile("adblock-cache.txt"));
+            return true;
+        } catch (IOException ex) {
+            LOGGER.error("Failed to read cached blacklist: {}", ex.getMessage(), ex);
+            return false;
+        }
+    }
+
+    private void parseFilters(Set<String> blacklist, String raw) {
+        final String[] arr = raw.split("\n");
+
+        for(int i = 40; i < arr.length; i++) {
+            String s = arr[i];
+            if(s.isEmpty() || s.startsWith("#")) continue;
+            s = s.substring(8);
+            if(s.startsWith("www.")) {
+                s = s.replaceFirst("www.", "");
+            }
+            blacklist.add(s);
+        }
+    }
+
+    private static long getMirrorInterval(String key) {
+        switch (key) {
+            case "interval_5": return 3 * 24 * 60 * 60 * 1000;
+            case "interval_4": return 2 * 24 * 60 * 60 * 1000;
+            case "interval_3": return 24 * 60 * 60 * 1000;
+            case "interval_1": return 0;
+            default: case "interval_2": return 12 * 60 * 60 * 1000;
+        }
     }
 }
