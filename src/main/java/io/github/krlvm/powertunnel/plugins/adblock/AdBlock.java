@@ -41,8 +41,8 @@ public class AdBlock extends PowerTunnelPlugin {
         final Configuration config = readConfiguration();
         final Set<String> blacklist = new HashSet<>();
 
-        final long interval = config.getLong("last_mirror_load", 0);
-        if ((System.currentTimeMillis() - interval) < getMirrorInterval(config.get("update_interval", "interval_2"))) {
+        final long interval = getMirrorInterval(config.get("update_interval", "interval_2"));
+        if ((System.currentTimeMillis() - config.getLong("last_mirror_load", 0)) < interval) {
             if (!loadFiltersFromCache(blacklist)) {
                 loadFiltersFromMirror(blacklist, config, interval != 0);
             }
@@ -89,6 +89,8 @@ public class AdBlock extends PowerTunnelPlugin {
         try {
             final String raw = TextReader.read(new URL("https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts").openStream());
             parseFilters(blacklist, raw);
+
+            System.out.println("WILL CACHE ? " + caching);
 
             if (caching) {
                 try {
