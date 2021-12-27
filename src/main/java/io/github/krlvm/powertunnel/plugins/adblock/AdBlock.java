@@ -27,6 +27,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -87,10 +89,7 @@ public class AdBlock extends PowerTunnelPlugin {
     private boolean loadFiltersFromMirror(Set<String> blacklist, Configuration config, boolean caching) {
         LOGGER.info("Loading filters from mirror...");
         try {
-            final String raw = TextReader.read(new URL("https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts").openStream());
-            parseFilters(blacklist, raw);
-
-            System.out.println("WILL CACHE ? " + caching);
+            loadFiltersFromUrl(blacklist, "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts");
 
             if (caching) {
                 try {
@@ -100,7 +99,7 @@ public class AdBlock extends PowerTunnelPlugin {
                     LOGGER.warn("Failed to save the time of the last load of the filters from the mirror: {}", ex.getMessage(), ex);
                 }
                 try {
-                    saveTextFile("adblock-cache.txt", raw);
+                    saveTextFile("adblock-cache.txt", joinString(blacklist, "\n"));
                 } catch (IOException ex) {
                     LOGGER.warn("Failed to save cached filters: {}", ex.getMessage(), ex);
                 }
@@ -113,10 +112,24 @@ public class AdBlock extends PowerTunnelPlugin {
         }
     }
 
+    private void loadFiltersFromUrl(Set<String> blacklist, String url) throws IOException {
+        final String raw = TextReader.read(new URL(url).openStream());
+        final String[] arr = raw.split("\n");
+
+        for (String s : arr) {
+            if (s.isEmpty() || s.startsWith("#")) continue;
+            s = s.substring(8);
+            if(s.startsWith("www.")) {
+                s = s.replaceFirst("www.", "");
+            }
+            blacklist.add(s);
+        }
+    }
+
     private boolean loadFiltersFromCache(Set<String> blacklist) {
         LOGGER.info("Loading filters from cache...");
         try {
-            parseFilters(blacklist, readTextFile("adblock-cache.txt"));
+            blacklist.addAll(Arrays.asList(readTextFile("adblock-cache.txt").split("\n")));
             return true;
         } catch (IOException ex) {
             LOGGER.error("Failed to read cached blacklist: {}", ex.getMessage(), ex);
@@ -124,18 +137,12 @@ public class AdBlock extends PowerTunnelPlugin {
         }
     }
 
-    private void parseFilters(Set<String> blacklist, String raw) {
-        final String[] arr = raw.split("\n");
-
-        for(int i = 40; i < arr.length; i++) {
-            String s = arr[i];
-            if(s.isEmpty() || s.startsWith("#")) continue;
-            s = s.substring(8);
-            if(s.startsWith("www.")) {
-                s = s.replaceFirst("www.", "");
-            }
-            blacklist.add(s);
+    private static String joinString(Collection<String> list, String delimiter) {
+        final StringBuilder builder = new StringBuilder();
+        for (String s : list) {
+            builder.append(s).append(delimiter);
         }
+        return builder.toString();
     }
 
     private static long getMirrorInterval(String key) {
