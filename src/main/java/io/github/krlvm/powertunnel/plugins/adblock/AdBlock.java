@@ -40,6 +40,11 @@ public class AdBlock extends PowerTunnelPlugin {
 
     @Override
     public void onProxyInitialization(@NotNull ProxyServer proxy) {
+        if (!proxy.areHostnamesAvailable()) {
+            LOGGER.warn("AdBlock plugin is not available when VPN-level hostname resolving is enabled");
+            return;
+        }
+
         final Configuration config = readConfiguration();
         final Set<String> blacklist = new HashSet<>();
 
